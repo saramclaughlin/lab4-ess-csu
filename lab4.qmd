@@ -4,9 +4,12 @@ format:
    html:
     code-fold: true
     toc: true
+
+execute: 
+  echo: true
+  
 subtitle: 'Introduction to Statistics in R'
 ---
-
 ```{r, include = F}
 knitr::opts_chunk$set(fig.width = 6, 
                       message = FALSE, 
@@ -18,13 +21,6 @@ knitr::opts_chunk$set(fig.width = 6,
 library(tidyverse)
 ```
 
-```{r}
-#| echo: false
-#| out.width: "100%"
-knitr::include_graphics('images/LTER-Network-Logo-2017.jpg')
-```
-
-This lab will walk us through some basic statistical tests in R, including chi-square, t-tests, and correlation tests. We will use data from the Long-Term Ecological Research (LTER) Network, which is a collaborative effort involving more than 2000 scientists and students investigating ecological processes over long temporal and broad spatial scales. The basics of this lab were adopted from a previous version of this course. This qmd for this lab can be downloaded [here](). Please download it into the repo of your choice and open it in RStudio to work through this lab:
 
 # Part 1: Univariate and Bivariate Statistics
 
@@ -320,19 +316,89 @@ Each question requires you to carry out a statistical analysis to test some hypo
 
 -   Report the findings of your test in proper scientific format (with the p-value in parentheses).
 
-<br>
 
 **1.** Conduct a chi-square test similar to the one carried out above, but test for a relationship between forest type (`section`) and channel unit (`unittype`) for *Coastal giant salamander* abundance. *Keep all unittypes* instead of filtering any like we did for the Cutthroat trout (10 pts.)
 
-<br>
+```{r}
+salamander_clean <- and_vertebrates |>
+  filter(species == "Coastal giant salamander") |>
+  drop_na(unittype, section)
+
+cont_table_two <- table(salamander_clean$section, salamander_clean$unittype)
+chisq.test(cont_table_two)
+
+salamander_clean  |>  
+  count(unittype, section)  |>  
+  ggpubr::ggbarplot(x = 'unittype', y = 'n', 
+                    fill = 'section', 
+                    palette = c("red", "blue"),
+                    add = "mean_se") 
+```
+## The results of the Chi-squared test show a very low p-value (p-value < 2.2e-16) which indicates strong significance between forest type and channel unit with Coastal giant salamander abundance. 
 
 **2.** Test the hypothesis that there is a significant difference in species biomass between clear cut and old growth forest types for the *Coastal Giant salamander*. (10 pts.)
 
-<br>
+```{r}
+salamander_clean |> 
+  drop_na(weight_g) |> 
+  ggpubr::ggviolin(x = "section", 
+                   y     = "weight_g", 
+                   add   = "boxplot",
+                   color = "section",
+                   palette = c("#00AFBB", "#E7B800")) 
+
+clearc_weight <- salamander_clean |> 
+  filter(section == "CC") |> 
+  pull(weight_g)
+
+oldg_weight <- salamander_clean |> 
+  filter(section == "OG") |> 
+  pull(weight_g)
+
+var.test(clearc_weight, oldg_weight)
+
+ggpubr::ggarrange(ggpubr::gghistogram(clearc_weight, main = "Clear Cut"), 
+                  ggpubr::gghistogram(oldg_weight, main = "Old Growth"))
+
+var.test(log(clearc_weight), log(oldg_weight))
+t.test(log(salamander_clean$weight_g) ~ salamander_clean$section, var.equal = TRUE)
+
+```
+## The results of the final t-test shows a very small p-value (< 2.2e-16), indicating we should reject the null hypothesis. So, there is a significance between forest type and channel unit with Coastal giant salamander biomass. According to their means, Coastal giant salamander body size is significantly higher in clear cut forests than old growth forests.
 
 **3.** Test the correlation between body length (snout to fork length) and body mass for *Cutthroat trout*. (Hint: run `?and_vertebrates` to find which length variable represents snout to fork length) (10 pts.)
 
-<br> <br>
+## snout-fork length = length_1_mm
+
+```{r}
+?and_vertebrates
+
+cutthroat_clean <- and_vertebrates |> 
+  filter(species == "Cutthroat trout") |> 
+  drop_na(length_1_mm, weight_g)
+
+ggarrange(gghistogram(cutthroat_clean$length_1_mm, title = "Length"),
+gghistogram(cutthroat_clean$weight_g, title = "Weight"))
+
+trout <- cutthroat_clean |> 
+  slice_sample(n = 5000) 
+shapiro.test(s$length_1_mm)
+shapiro.test(s$weight_g)
+
+ggarrange(
+ gghistogram(log(cutthroat_clean$length_1_mm), title = "Length"), 
+ gghistogram(log(cutthroat_clean$weight_g), title = "Weight") )
+
+cor.test(log(cutthroat_clean$length_1_mm), log(cutthroat_clean$weight_g))
+cutthroat_clean |> 
+  mutate(log_length = log(length_1_mm), log_weight = log(weight_g)) |> 
+  ggscatter(x = 'log_length', 
+            y = 'log_weight', 
+            alpha = .35,
+            add = "loess")
+cor.test(cutthroat_clean$length_1_mm, cutthroat_clean$weight_g, method = "spearman")
+```
+## The results of this test indicate a highly significant positive relationship (rho = 0.992) between Cutthroat trout body length and body mass. 
 
 # Part 2: Multivariate Statistics
 
@@ -397,7 +463,7 @@ pie_crab |>
   theme(legend.postition = "none")
 ```
 
-In doing this, it ;ooks like there are differences among sites, tempting us to test for statistical significance with the ANOVA test.
+In doing this, it looks like there are differences among sites, tempting us to test for statistical significance with the ANOVA test.
 
 ## Assumptions
 
@@ -555,9 +621,66 @@ In your assignment, you will perform a multiple linear regression using variable
 
 1.  **After** completing the ANOVA test (and post-hoc Tukey's HSD) above to test for significant differences in crab size among 3 different sites: **1)** Create a boxplot showing the carapace width for each site where sites are *ordered by latitude* and **2)** report the findings of the statistical test as you would in a scientific paper. *Include both the code to create the boxplot and an image of the figure.* (10 pts.)
 
+### BOXPLOT STILL LOOKS EXACTLY THE SAME AS ORIGINAL !!!!
+
+```{r}
+site_order <- pie_crab |>
+  group_by(site) |>
+  summarize(mean_lats = mean(latitude, na.rm = TRUE)) |>
+  arrange(mean_lats) |>
+  pull(site)
+
+pie_crab$site <- factor(pie_crab$site, levels = site_order)
+
+ggboxplot(pie_crab, x = 'site', y= 'size', col = 'site') +
+  geom_jitter(size =.25) +
+  theme(legend.position = "none") +
+  labs(
+    x = "Site by Latitude",
+    y = "Crab Size",
+    title = "Crab Size by Site Ordered with Increasing Latitude"
+  )
+```
+
+```{r}
+#| echo: false
+#| out.width: "100%"
+knitr::include_graphics('boxplot.png')
+```
+## This boxplot illustrates the correlation between crab size and site as a result of varying latitude, with sites ordered by increasing latitude. According to the boxplot, the mean crab size generally increases as mean latitude increases across sites. Thus, the plot provides evidence for the conclusion that crabs from higher-latitude sites will be larger on average than those from lower latitude sites.   
+
 2.  Conduct a simple linear regression for the effect of `water_temp_sd` (a measure reflecting annual variation in water temperature) on carapace width. Report your findings (include code *and* a sentence reporting the results) AND create a plot with a line of best fit. *Include both the code to create the plot and an image of the figure*. (10 pts).
 
+```{r}
+water_lm <- lm(size ~ water_temp_sd, data = pie_crab)
+summary(water_lm)
+
+pie_crab |> 
+  ggscatter(x = 'water_temp_sd', y = 'size', 
+            alpha = .35, 
+            add = "reg.line")
+```
+## The results of this linear model (Pr = 0.528 and Estimate = 0.09938) show that annual variation in water temperature does not have a significant influence or effect on crab size. 
+
+```{r}
+#| echo: false
+#| out.width: "100%"
+knitr::include_graphics('water_plot.png')
+```
+
 3.  Conduct a multiple linear regression for the effects of `latitude`, `air_temp_sd`, and `water_temp_sd` on carapace width. **First** check for correlations among the three predictor variables (and report the correlation table) and **second** report your findings from the multiple linear regression (code *and* a sentence reporting the results). (10 pts.)
+
+```{r}
+cor_table <- pie_crab |> 
+  dplyr::select(latitude, air_temp_sd, water_temp_sd) |> 
+  cor() 
+print(cor_table)
+
+crab_mlm <- lm(size ~ latitude + air_temp_sd + water_temp_sd, data = pie_crab)
+summary(crab_mlm)
+```
+## The correlation tables shows that air temperature deviation is highly, positively correlated with latitude.
+## The multiple linear regression model reports a very small overall p-value (<2e-16), which suggests the combined predictor variables have a significant impact on crab size. According to individual p-values, latitude has the largest influence on crab size.
 
 ## Acknowledgements
 
