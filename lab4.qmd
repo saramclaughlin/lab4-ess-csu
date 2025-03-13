@@ -621,18 +621,14 @@ In your assignment, you will perform a multiple linear regression using variable
 
 1.  **After** completing the ANOVA test (and post-hoc Tukey's HSD) above to test for significant differences in crab size among 3 different sites: **1)** Create a boxplot showing the carapace width for each site where sites are *ordered by latitude* and **2)** report the findings of the statistical test as you would in a scientific paper. *Include both the code to create the boxplot and an image of the figure.* (10 pts.)
 
-### BOXPLOT STILL LOOKS EXACTLY THE SAME AS ORIGINAL !!!!
-
 ```{r}
-site_order <- pie_crab |>
+crabs_ordered <- pie_crab |>
   group_by(site) |>
-  summarize(mean_lats = mean(latitude, na.rm = TRUE)) |>
-  arrange(mean_lats) |>
-  pull(site)
+  mutate(mean_lat = mean(latitude, na.rm = TRUE)) |>
+  ungroup() |>
+  arrange(mean_lat)
 
-pie_crab$site <- factor(pie_crab$site, levels = site_order)
-
-ggboxplot(pie_crab, x = 'site', y= 'size', col = 'site') +
+ggboxplot(crabs_ordered, x = 'site', y= 'size', col = 'site') +
   geom_jitter(size =.25) +
   theme(legend.position = "none") +
   labs(
@@ -640,6 +636,7 @@ ggboxplot(pie_crab, x = 'site', y= 'size', col = 'site') +
     y = "Crab Size",
     title = "Crab Size by Site Ordered with Increasing Latitude"
   )
+
 ```
 
 ```{r}
